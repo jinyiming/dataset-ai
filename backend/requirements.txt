@@ -1,0 +1,13 @@
+flask
+flask-cors
+fastapi
+uvicorn
+requests
+pydantic
+python-dotenv
+httpx
+json5
+python-multipart
+aiofiles
+SQLAlchemy
+dmPython
