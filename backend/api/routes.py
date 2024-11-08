@@ -146,7 +146,7 @@ def is_qinfo_exists(q_content):
 def process_document():
     try:
         if 'file' not in request.files:
-            return jsonify({'error': '没有上传文件'}), 400
+            return jsonify({'error': '没有传文件'}), 400
 
         file = request.files['file']
         if file.filename == '':
@@ -256,11 +256,37 @@ def save_template():
 def get_templates(template_type):
     """获取指定类型的模板列表"""
     try:
-        templates = get_template_by_type(template_type)
-        return jsonify({
-            "templates": templates
-        }), 200
+        cursor, conn = _connDB()
+        if cursor is None or conn is None:
+            raise Exception("数据库连接失败")
+
+        try:
+            query = """
+            SELECT "ID", "SUBJECT", "TYPE", "CONTENT", "DRAFT_USER_NAME", "DRAFT_DATE"
+            FROM "XYCS"."QA_TEMPLATE"
+            WHERE "TYPE" = :type
+            ORDER BY "DRAFT_DATE" DESC
+            """
+            cursor.execute(query, {'type': template_type})
+            templates = cursor.fetchall()
+            
+            result = [{
+                'id': t[0],
+                'subject': t[1],
+                'type': t[2],
+                'content': t[3],  # 确保 content 字段正确返回
+                'draft_user_name': t[4],
+                'draft_date': t[5].strftime('%Y-%m-%d %H:%M:%S') if t[5] else None
+            } for t in templates]
+
+            print(f"获取到的模板: {result}")  # 添加调试日志
+            return jsonify({
+                "templates": result
+            }), 200
+        finally:
+            close_connection(cursor, conn)
     except Exception as e:
+        print(f"获取模板失败: {e}")  # 添加调试日志
         return jsonify({
             "error": "获取模板列表失败",
             "details": str(e)
