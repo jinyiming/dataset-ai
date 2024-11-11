@@ -291,3 +291,150 @@ def get_templates(template_type):
             "error": "获取模板列表失败",
             "details": str(e)
         }), 500
+
+@api_bp.route('/file-stats', methods=['GET'])
+def get_file_stats():
+    """获取文件统计数据"""
+    try:
+        # 获取筛选参数
+        file_type = request.args.get('fileType', '')  # 文件类型
+        system = request.args.get('system', '')       # 系统编码
+        format = request.args.get('format', '')       # 文件格式
+        module = request.args.get('module', '')       # 模块
+        start_date = request.args.get('startDate')    # 开始日期
+        end_date = request.args.get('endDate')        # 结束日期
+
+        cursor, conn = _connDB()
+        if cursor is None or conn is None:
+            raise Exception("数据库连接失败")
+
+        try:
+            # 构建基础条件
+            conditions = ['"STATUS" != \'已删\'']
+            params = {}
+            
+            # 添加筛选条件
+            if file_type:
+                conditions.append('"TYPE" = :file_type')
+                params['file_type'] = file_type
+
+            if system:
+                conditions.append('"SYSTEM_NO" = :system')
+                params['system'] = system
+
+            if format:
+                conditions.append('"FILE_SUFFIX" = :format')
+                params['format'] = format
+
+            if module:
+                conditions.append('"MODULE_ID" = :module')
+                params['module'] = module
+
+            # 添加时间范围条件
+            if start_date:
+                conditions.append('TRUNC("CREATE_TIME") >= TO_DATE(:start_date, \'YYYY-MM-DD\')')
+                params['start_date'] = start_date
+            if end_date:
+                conditions.append('TRUNC("CREATE_TIME") <= TO_DATE(:end_date, \'YYYY-MM-DD\')')
+                params['end_date'] = end_date
+
+            where_clause = ' AND '.join(conditions)
+
+            # 获取总文件数和总大小
+            count_query = f"""
+            SELECT COUNT(*), COALESCE(SUM("FILE_SIZE"), 0)
+            FROM "XYCS"."EGOV_ATT_DATA"
+            WHERE {where_clause}
+            """
+            cursor.execute(count_query, params)
+            total_files, total_size = cursor.fetchone()
+
+            # 获取本月新增
+            monthly_query = f"""
+            SELECT COUNT(*)
+            FROM "XYCS"."EGOV_ATT_DATA"
+            WHERE {where_clause}
+            AND "CREATE_TIME" >= TRUNC(CURRENT_DATE, 'MM')
+            """
+            cursor.execute(monthly_query, params)
+            monthly_new = cursor.fetchone()[0]
+
+            # 获取文件类型分布
+            type_query = f"""
+            SELECT "TYPE", COUNT(*) as count
+            FROM "XYCS"."EGOV_ATT_DATA"
+            WHERE {where_clause}
+            GROUP BY "TYPE"
+            ORDER BY count DESC
+            """
+            cursor.execute(type_query, params)
+            type_distribution = [
+                {"name": row[0] or '未知类型', "value": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            # 获取系统使用情况
+            system_query = f"""
+            SELECT "SYSTEM_NO", COUNT(*) as count
+            FROM "XYCS"."EGOV_ATT_DATA"
+            WHERE {where_clause}
+            GROUP BY "SYSTEM_NO"
+            ORDER BY count DESC
+            """
+            cursor.execute(system_query, params)
+            system_stats = [
+                {"name": row[0] or '未知系统', "value": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            # 获取文件格式分布
+            format_query = f"""
+            SELECT "FILE_SUFFIX", COUNT(*) as count
+            FROM "XYCS"."EGOV_ATT_DATA"
+            WHERE {where_clause}
+            GROUP BY "FILE_SUFFIX"
+            ORDER BY count DESC
+            """
+            cursor.execute(format_query, params)
+            format_distribution = [
+                {"name": row[0] or '未知格式', "value": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            # 获取模块使用统计
+            module_query = f"""
+            SELECT 
+                COALESCE("MODULE_ID", '未知模块') as module_name,
+                COUNT(*) as count
+            FROM "XYCS"."EGOV_ATT_DATA"
+            WHERE {where_clause}
+            GROUP BY "MODULE_ID"
+            ORDER BY count DESC
+            """
+            cursor.execute(module_query, params)
+            module_stats = [
+                {"name": row[0], "value": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            response_data = {
+                "totalFiles": total_files,
+                "totalSize": total_size,
+                "monthlyNew": monthly_new,
+                "typeDistribution": type_distribution,
+                "systemStats": system_stats,
+                "formatDistribution": format_distribution,
+                "moduleStats": module_stats
+            }
+
+            return jsonify(response_data), 200
+
+        finally:
+            close_connection(cursor, conn)
+
+    except Exception as e:
+        print(f"获取文件统计数据失败: {e}")
+        return jsonify({
+            "error": "获取统计数据失败",
+            "details": str(e)
+        }), 500

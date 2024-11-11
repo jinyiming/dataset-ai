@@ -199,39 +199,39 @@
                             <label :for="template.id">{{ template.subject }}</label>
                           </div>
 
-                          <!-- 添加模板内容预览 -->
-                          <div v-if="selectedTemplates.includes(template.id)" class="template-preview">
-                            <div class="template-content">
-                              <h4>模板结构</h4>
-                              <pre class="json-preview">{{ formatJSON(template.content) }}</pre>
-                            </div>
+                            <!-- 添加模板内容预览 -->
+                            <div v-if="selectedTemplates.includes(template.id)" class="template-preview">
+                              <div class="template-content">
+                                <h4>模板结构</h4>
+                                <pre class="json-preview">{{ formatJSON(template.content) }}</pre>
+                              </div>
 
-                            <div class="field-mapping">
-                              <h4>字段映射</h4>
-                              <div class="mapping-container">
-                                <div v-for="field in getTemplateFields(template)" 
-                                     :key="field.path"
-                                     class="mapping-row">
-                                  <div class="field-info">
-                                    <span class="field-path">{{ field.path }}</span>
-                                    <span class="field-value">当前值: {{ field.value }}</span>
-                                  </div>
-                                  <div class="mapping-control">
-                                    <select v-model="fieldMapping[field.path]" class="field-select">
-                                      <option value="">请选择映射字段</option>
-                                      <option value="question">问题</option>
-                                      <option value="answer">答案</option>
-                                      <option value="custom">自定义值</option>
-                                    </select>
-                                    <input v-if="fieldMapping[field.path] === 'custom'"
-                                           v-model="customValues[field.path]"
-                                           :placeholder="'请输入' + field.path + '的值'"
-                                           class="custom-input">
+                              <div class="field-mapping">
+                                <h4>字段映射</h4>
+                                <div class="mapping-container">
+                                  <div v-for="field in getTemplateFields(template)" 
+                                       :key="field.path"
+                                       class="mapping-row">
+                                    <div class="field-info">
+                                      <span class="field-path">{{ field.path }}</span>
+                                      <span class="field-value">当前值: {{ field.value }}</span>
+                                    </div>
+                                    <div class="mapping-control">
+                                      <select v-model="fieldMapping[field.path]" class="field-select">
+                                        <option value="">请选择映射字段</option>
+                                        <option value="question">问题</option>
+                                        <option value="answer">答案</option>
+                                        <option value="custom">自定义值</option>
+                                      </select>
+                                      <input v-if="fieldMapping[field.path] === 'custom'"
+                                             v-model="customValues[field.path]"
+                                             :placeholder="'请输入' + field.path + '的值'"
+                                             class="custom-input">
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
                         </div>
                       </div>
 
@@ -276,6 +276,7 @@
               import Screensaver from '@/components/Screensaver.vue'
               import SettingsPage from '@/views/SettingsPage.vue'
               import axios from 'axios'
+              import { useRouter } from 'vue-router'
               
               const qaList = ref([])
               const isLoading = ref(false)
@@ -309,7 +310,7 @@
               const fieldMapping = ref({})
               const customValues = ref({})
               
-              // 添加预览相关的状态
+              // 添加览相关的状态
               const showPreview = ref(false)
               const previewData = ref(null)
 
@@ -433,7 +434,7 @@
               
               // 监听用户活动
               onMounted(() => {
-                // 显示初始屏保
+                // 显初始屏保
                 showScreensaver.value = true
 
                 // 添加事件监听
@@ -504,34 +505,47 @@
               const dockItems = ref([
                 {
                   id: 1,
-                  label: '问答',
-                  icon: 'M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.8214 2.48697 15.5291 3.33782 17L2.5 21.5L7 20.6622C8.47087 21.513 10.1786 22 12 22Z',
+                  label: '问答录入',
+                  icon: 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z',
                   bgColor: '#10B981',
                   active: true
                 },
                 {
                   id: 2,
-                  label: '历史',
-                  icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                  label: '数据分析',
+                  icon: 'M4 19h16v2H4zm4-4h2v4H8zm-4-4h2v8H4zm8 0h2v8h-2zm4 0h2v8h-2zm-6-4h2v12h-2z',
                   bgColor: '#6366F1',
                   active: false
                 },
                 {
                   id: 3,
-                  label: '记录',
-                  icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+                  label: '知识图谱',
+                  icon: 'M17.5 3C15.57 3 14 4.57 14 6.5V8h-4V6.5C10 4.57 8.43 3 6.5 3S3 4.57 3 6.5 4.57 10 6.5 10H8v4H6.5C4.57 14 3 15.57 3 17.5S4.57 21 6.5 21s3.5-1.57 3.5-3.5V16h4v1.5c0 1.93 1.57 3.5 3.5 3.5s3.5-1.57 3.5-3.5-1.57-3.5-3.5-3.5H16v-4h1.5c1.93 0 3.5-1.57 3.5-3.5S19.43 3 17.5 3zM16 8V6.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S18.33 8 17.5 8H16zM6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5V8H6.5zm3.5 6v-4h4v4h-4zm7.5 5c-.83 0-1.5-.67-1.5-1.5V16h1.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5zm-11 0c-.83 0-1.5-.67-1.5-1.5S5.67 16 6.5 16H8v1.5c0 .83-.67 1.5-1.5 1.5z',
                   bgColor: '#F59E0B',
                   active: false
                 },
                 {
                   id: 4,
+                  label: '系统模版',
+                  icon: 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z',
+                  bgColor: '#8B5CF6',
+                  active: false
+                },
+                {
+                  id: 5,
                   label: '设置',
-                  icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
+                  icon: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
                   bgColor: '#8B5CF6',
                   active: false
                 }
               ])
-              
+
+              // 修改图标样式
+              const iconStyle = {
+                width: '32px',  // 增大图标尺寸
+                height: '32px'
+              }
+
               const handleGenerateQA = (aiResponse) => {
                 qaList.value = aiResponse.map((item, index) => ({
                   id: index,
@@ -553,10 +567,14 @@
               
               // 修改图标点击处理函数
               const handleIconClick = (element) => {
-                if (element.label === '问答') {
+                if (element.label === '问答录入') {
                   showDialog.value = true
                 } else if (element.label === '设置') {
-                  window.open('/settings', '_blank')  // 在新窗口打开设置页面
+                  window.open('/settings', '_blank')
+                } else if (element.label === '数据分析') {
+                  window.open('/analysis', '_blank')
+                } else if (element.label === '知识图谱') {
+                  window.open('/knowledge-graph', '_blank')
                 }
               }
               
@@ -571,7 +589,7 @@
                 try {
                   return JSON.stringify(JSON.parse(content), null, 2)
                 } catch (e) {
-                  console.error('JSON 格式化失败:', e)
+                  console.error('JSON 格式失败:', e)
                   return content
                 }
               }
@@ -906,7 +924,7 @@
                 margin-bottom: 80px; /* 为底部图标栏留出空间 */
               }
               
-              /* 修改进度条样式 - 确保在整个页面居中 */
+              /* 修改进度条样式 - 确保在整个页面居 */
               .processing-overlay {
                 position: fixed;
                 top: 0;

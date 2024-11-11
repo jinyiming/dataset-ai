@@ -6,9 +6,9 @@ import uuid
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def _connDB():
-    db_user = "XYCS"
-    db_password = "Xycs#2021"
-    db_host = "192.168.246.117"  # 确保这个地址是正确的
+    db_user = "SYSDBA"
+    db_password = "SYSDBA"
+    db_host = "localhost"  # 确保这个地址是正确的
     db_port = '5236'
 
     try:
