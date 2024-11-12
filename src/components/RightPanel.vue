@@ -36,7 +36,7 @@
       </table>
     </div>
 
-    <!-- 添加模板选择对话框 -->
+    <!-- 添加模���选择对话框 -->
     <div v-if="showTemplateDialog" class="template-dialog">
       <div class="dialog-content">
         <div class="dialog-header">
@@ -233,9 +233,25 @@ const getFieldDescription = (template, field) => {
   }
 }
 
-// 获取字段占位符
+// 获取字段占位���
 const getFieldPlaceholder = (template, field) => {
   return `请输入${field}的值`
+}
+
+// 定义导出成功状态
+const showExportSuccess = ref(false)
+
+// 处理模板对话框显示
+const handleShowTemplate = () => {
+  emit('show-template-dialog')
+}
+
+// 导出成功后的处理
+const handleExportSuccess = () => {
+  showExportSuccess.value = true
+  setTimeout(() => {
+    showExportSuccess.value = false
+  }, 3000)
 }
 </script>
 
@@ -573,18 +589,14 @@ tr:hover {
 .export-success {
   position: fixed;
   top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #059669;
+  right: 20px;
+  background: #10b981;
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  animation: slideDown 0.3s ease;
-  z-index: 1001;
+  animation: slideIn 0.3s ease;
+  z-index: 1000;
 }
 
 .success-content {
@@ -596,16 +608,16 @@ tr:hover {
 .icon-success {
   width: 20px;
   height: 20px;
-  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>');
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>');
 }
 
-@keyframes slideDown {
+@keyframes slideIn {
   from {
-    transform: translate(-50%, -100%);
+    transform: translateX(100%);
     opacity: 0;
   }
   to {
-    transform: translate(-50%, 0);
+    transform: translateX(0);
     opacity: 1;
   }
 }

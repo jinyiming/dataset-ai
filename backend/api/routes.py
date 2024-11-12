@@ -69,7 +69,7 @@ def save_qa():
         # 保存到 QA_INFO 表
         for qa in qa_list:
             insert_qa_pair(qa['question'], qa['answer'], q_id)  # 使用返回的 ID
-            print(f"成功插入: {qa['question']} - {qa['answer']}")  # 调试输出
+            print(f"成功入: {qa['question']} - {qa['answer']}")  # 调试输出
         
         return jsonify({"message": "问答对已保存"}), 200
     except Exception as e:
@@ -146,7 +146,7 @@ def is_qinfo_exists(q_content):
 def process_document():
     try:
         if 'file' not in request.files:
-            return jsonify({'error': '没有传文件'}), 400
+            return jsonify({'error': '没有文件'}), 400
 
         file = request.files['file']
         if file.filename == '':
@@ -434,6 +434,151 @@ def get_file_stats():
 
     except Exception as e:
         print(f"获取文件统计数据失败: {e}")
+        return jsonify({
+            "error": "获取统计数据失败",
+            "details": str(e)
+        }), 500
+
+@api_bp.route('/document-stats', methods=['GET'])
+def get_document_stats():
+    print("接收到公文统计请求")  # 添加调试日志
+    try:
+        # 获取筛选参数
+        doc_type = request.args.get('docType', '')
+        module = request.args.get('module', '')
+
+        cursor, conn = _connDB()
+        if cursor is None or conn is None:
+            raise Exception("数据库连接失败")
+
+        try:
+            # 构建基础条件
+            conditions = []
+            params = {}
+            
+            if doc_type:
+                conditions.append('"DOC_TYPE" = :doc_type')
+                params['doc_type'] = doc_type
+
+            where_clause = ' AND '.join(conditions) if conditions else '1=1'
+
+            # 获取文件标题分类统计（根据标题关键字分类）
+            subject_query = f"""
+            WITH combined_data AS (
+                SELECT "SUBJECT" FROM "XYCS"."EGOV_DISPATCH_DATA" WHERE {where_clause}
+                UNION ALL
+                SELECT "SUBJECT" FROM "XYCS"."EGOV_RECEIVAL_DATA" WHERE {where_clause}
+                UNION ALL
+                SELECT "SUBJECT" FROM "XYCS"."EGOV_EX_DOC_DATA" WHERE {where_clause}
+            )
+            SELECT 
+                CASE 
+                    WHEN "SUBJECT" LIKE '%通知%' THEN '通知'
+                    WHEN "SUBJECT" LIKE '%通告%' THEN '通告'
+                    WHEN "SUBJECT" LIKE '%通报%' THEN '通报'
+                    WHEN "SUBJECT" LIKE '%请示%' THEN '请示'
+                    WHEN "SUBJECT" LIKE '%函%' THEN '函'
+                    WHEN "SUBJECT" LIKE '%纪要%' THEN '纪要'
+                    WHEN "SUBJECT" LIKE '%决议%' THEN '决议'
+                    WHEN "SUBJECT" LIKE '%决定%' THEN '决定'
+                    WHEN "SUBJECT" LIKE '%公告%' THEN '公告'
+                    ELSE '其他'
+                END as doc_category,
+                COUNT(*) as count
+            FROM combined_data
+            GROUP BY 
+                CASE 
+                    WHEN "SUBJECT" LIKE '%通知%' THEN '通知'
+                    WHEN "SUBJECT" LIKE '%通告%' THEN '通告'
+                    WHEN "SUBJECT" LIKE '%通报%' THEN '通报'
+                    WHEN "SUBJECT" LIKE '%请示%' THEN '请示'
+                    WHEN "SUBJECT" LIKE '%函%' THEN '函'
+                    WHEN "SUBJECT" LIKE '%纪要%' THEN '纪要'
+                    WHEN "SUBJECT" LIKE '%决议%' THEN '决议'
+                    WHEN "SUBJECT" LIKE '%决定%' THEN '决定'
+                    WHEN "SUBJECT" LIKE '%公告%' THEN '公告'
+                    ELSE '其他'
+                END
+            ORDER BY count DESC
+            """
+            cursor.execute(subject_query, params)
+            subject_stats = [
+                {"name": row[0], "value": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            # 获取文种分布统计
+            category_query = f"""
+            WITH combined_data AS (
+                SELECT "DOC_TYPE" as type_field FROM "XYCS"."EGOV_DISPATCH_DATA" WHERE {where_clause}
+                UNION ALL
+                SELECT "FILE_CATEGORY" as type_field FROM "XYCS"."EGOV_RECEIVAL_DATA" WHERE {where_clause}
+                UNION ALL
+                SELECT "DOC_TYPE" as type_field FROM "XYCS"."EGOV_EX_DOC_DATA" WHERE {where_clause}
+            )
+            SELECT 
+                COALESCE(type_field, '未知文种') as category,
+                COUNT(*) as count
+            FROM combined_data
+            GROUP BY type_field
+            ORDER BY count DESC
+            """
+            cursor.execute(category_query, params)
+            category_stats = [
+                {"name": row[0] or '未知文种', "value": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            # 获取模块统计
+            module_stats = [
+                {
+                    "name": "发文",
+                    "value": cursor.execute(
+                        f'SELECT COUNT(*) FROM "XYCS"."EGOV_DISPATCH_DATA" WHERE {where_clause}',
+                        params
+                    ).fetchone()[0]
+                },
+                {
+                    "name": "收文",
+                    "value": cursor.execute(
+                        f'SELECT COUNT(*) FROM "XYCS"."EGOV_RECEIVAL_DATA" WHERE {where_clause}',
+                        params
+                    ).fetchone()[0]
+                },
+                {
+                    "name": "公文交换",
+                    "value": cursor.execute(
+                        f'SELECT COUNT(*) FROM "XYCS"."EGOV_EX_DOC_DATA" WHERE {where_clause}',
+                        params
+                    ).fetchone()[0]
+                }
+            ]
+
+            # 获取TOP10统计
+            top_stats = {
+                "subject": subject_stats[:10],
+                "category": category_stats[:10]
+            }
+
+            # 计算总数
+            total_docs = sum(stat["value"] for stat in module_stats)
+
+            response_data = {
+                "totalDocs": total_docs,
+                "moduleStats": module_stats,
+                "subjectStats": subject_stats,
+                "categoryStats": category_stats,
+                "topStats": top_stats
+            }
+
+            # print("返回公文统计数据:", response_data)  # 添加调试日志
+            return jsonify(response_data), 200
+
+        finally:
+            close_connection(cursor, conn)
+
+    except Exception as e:
+        print(f"处理公文统计数据失败: {e}")  # 添加错误日志
         return jsonify({
             "error": "获取统计数据失败",
             "details": str(e)

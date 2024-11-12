@@ -3,6 +3,7 @@ import Home from '../views/Home.vue'
 import SettingsPage from '../views/SettingsPage.vue'
 import DataAnalysis from '../views/DataAnalysis.vue'
 import KnowledgeGraph from '../views/KnowledgeGraph.vue'
+import DocumentStats from '../views/DocumentStats.vue'
 
 const routes = [
   {
@@ -36,6 +37,11 @@ const routes = [
     meta: {
       title: 'AI 问答系统 - 知识图谱'
     }
+  },
+  {
+    path: '/document-stats',
+    name: 'DocumentStats',
+    component: DocumentStats
   }
 ]
 

@@ -537,6 +537,13 @@
                   icon: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
                   bgColor: '#8B5CF6',
                   active: false
+                },
+                {
+                  id: 6,
+                  label: '公文统计',
+                  icon: 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z',
+                  bgColor: '#EC4899',
+                  active: false
                 }
               ])
 
@@ -568,13 +575,17 @@
               // 修改图标点击处理函数
               const handleIconClick = (element) => {
                 if (element.label === '问答录入') {
-                  showDialog.value = true
-                } else if (element.label === '设置') {
-                  window.open('/settings', '_blank')
+                  showDialog.value = true  // 恢复问答录入对话框
                 } else if (element.label === '数据分析') {
                   window.open('/analysis', '_blank')
                 } else if (element.label === '知识图谱') {
                   window.open('/knowledge-graph', '_blank')
+                } else if (element.label === '系统模版') {
+                  // 处理系统模板
+                } else if (element.label === '设置') {
+                  window.open('/settings', '_blank')
+                } else if (element.label === '公文统计') {
+                  window.open('/document-stats', '_blank')
                 }
               }
               
@@ -604,7 +615,7 @@
                     showTemplateDialog.value = true
                   }
                 } catch (error) {
-                  console.error('获取模板失败:', error)
+                  console.error('获取板失败:', error)
                   alert('获取模板失败，请稍后重试')
                 }
               }
@@ -734,17 +745,19 @@
                 width: 100%;
                 gap: 12px;
                 height: calc(100vh - 32px);
+                position: relative;
+                z-index: 1;
               }
               
               .panel {
                 height: 100%;
                 overflow-y: auto;
                 border-radius: 16px;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                transition: all 0.3s ease;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
                 backdrop-filter: blur(10px);
                 display: flex;
                 flex-direction: column;
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
               }
               
               .panel-divider {
@@ -764,42 +777,27 @@
               .middle-gradient {
                 flex: 1;
                 min-width: 0;
+                position: relative;
+                z-index: 1;
               }
               
               /* 动态背景渐变 */
               .left-gradient {
-                background: linear-gradient(-45deg, #e3f2fd, #bbdefb, #90caf9, #64b5f6);
-                background-size: 400% 400%;
-                animation: gradientBG 15s ease infinite;
+                background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
               }
               
               .middle-gradient {
-                background: linear-gradient(-45deg, #f5f5f5, #eeeeee, #e0e0e0, #bdbdbd);
-                background-size: 400% 400%;
-                animation: gradientBG 15s ease infinite;
-                animation-delay: 0.5s;
+                background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
               }
               
               .right-gradient {
-                background: linear-gradient(-45deg, #e8eaf6, #c5cae9, #9fa8da, #7986cb);
-                background-size: 400% 400%;
-                animation: gradientBG 15s ease infinite;
-                animation-delay: 1s;
+                background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
               }
               
-              @keyframes gradientBG {
-                0% {
-                  background-position: 0% 50%;
-                }
-                50% {
-                  background-position: 100% 50%;
-                }
-                100% {
-                  background-position: 0% 50%;
-                }
-              }
-              
-              /* 面板悬停效果 */
+              /* 优化面板悬停效果 */
               .panel:hover {
                 transform: translateY(-2px);
                 box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.15);
@@ -823,18 +821,14 @@
                 background: rgba(0, 0, 0, 0.2);
               }
               
-              /* 修改浮动图标栏样式 */
+              /* 修改浮动图标栏样式，避免影响其他面板 */
               .floating-dock {
                 position: fixed;
                 left: 50%;
                 bottom: 20px;
-                transform: translateX(-50%) translateY(0);
+                transform: translateX(-50%);
                 z-index: 9999;
-                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-              }
-              
-              .dock-hidden {
-                transform: translateX(-50%) translateY(150%);
+                pointer-events: none;
               }
               
               .icon-dock {
@@ -843,11 +837,16 @@
                 border-radius: 20px;
                 padding: 8px;
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                pointer-events: auto;
               }
               
-              /* 添加鼠标悬停时的显示效果 */
+              /* 移除不必要的悬停效果 */
               .floating-dock:hover {
-                transform: translateX(-50%) translateY(0) !important;
+                transform: translateX(-50%);
+              }
+              
+              .dock-hidden {
+                transform: translateX(-50%) translateY(150%);
               }
               
               .dock-items-container {
