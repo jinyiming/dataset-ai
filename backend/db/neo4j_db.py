@@ -123,9 +123,34 @@ class Neo4jDB:
             with self._driver.session() as session:
                 result = session.run("""
                     MATCH (n)
-                    RETURN n, labels(n) as labels
+                    RETURN DISTINCT
+                        ID(n) as id,
+                        CASE
+                            WHEN 'User' IN labels(n) THEN n.name
+                            WHEN 'Organization' IN labels(n) THEN n.name
+                            WHEN 'Document' IN labels(n) THEN n.title
+                            WHEN 'System' IN labels(n) THEN n.name
+                            WHEN 'Opinion' IN labels(n) THEN 
+                                CASE 
+                                    WHEN n.content IS NULL THEN '无内容'
+                                    ELSE substring(n.content, 0, 20)
+                                END
+                            ELSE '未命名'
+                        END as label,
+                        labels(n)[0] as type,
+                        properties(n) as properties
                 """)
-                nodes = [(record['n'], record['labels']) for record in result]
+                
+                nodes = []
+                for record in result:
+                    node_data = {
+                        'id': str(record['id']),
+                        'label': record['label'] or '未命名',
+                        'type': record['type'].lower(),
+                        'properties': record['properties']
+                    }
+                    nodes.append(node_data)
+                
                 print(f"从Neo4j获取到 {len(nodes)} 个节点")
                 return nodes
         except Exception as e:
@@ -138,9 +163,21 @@ class Neo4jDB:
             with self._driver.session() as session:
                 result = session.run("""
                     MATCH (a)-[r]->(b)
-                    RETURN id(a) as source, id(b) as target, type(r) as type
+                    RETURN 
+                        ID(a) as source,
+                        ID(b) as target,
+                        type(r) as type
                 """)
-                relationships = [dict(record) for record in result]
+                
+                relationships = []
+                for record in result:
+                    rel_data = {
+                        'source': str(record['source']),
+                        'target': str(record['target']),
+                        'type': record['type']
+                    }
+                    relationships.append(rel_data)
+                
                 print(f"从Neo4j获取到 {len(relationships)} 个关系")
                 return relationships
         except Exception as e:
@@ -366,7 +403,7 @@ class Neo4jDB:
                         d.category = 'receival'
                     RETURN d
                 """, doc_id=doc_id, subject=subject, doc_type=doc_type)
-                logging.info(f"创建收文节点成功: {subject}")
+                logging.info(f"创建收文节点成: {subject}")
                 return result.single()['d']
         except Exception as e:
             logging.error(f"创建收文节点失败: {e}")
@@ -460,4 +497,99 @@ class Neo4jDB:
                 logging.info(f"创建部门办理公文关系成功: {org_no} -> {doc_id}")
         except Exception as e:
             logging.error(f"创建部门办理公文关系失败: {e}")
-            raise 
+            raise
+
+    def create_user_handle_doc_relation(self, handler_info, doc_id):
+        """创建用户办理公文关系"""
+        try:
+            with self._driver.session() as session:
+                # 创建办理关系，包含办理状态和时间信息
+                session.run("""
+                    MATCH (u:User {user_no: $user_no})
+                    MATCH (d:Document {id: $doc_id})
+                    MERGE (u)-[r:HANDLED]->(d)
+                    SET r.state = $state,
+                        r.create_time = $create_time,
+                        r.label = '办理'
+                """, 
+                user_no=handler_info['user_no'],
+                doc_id=doc_id,
+                state=handler_info['state'],
+                create_time=handler_info['create_time']
+                )
+                logging.info(f"创建用户办理关系成功: {handler_info['user_no']} -> {doc_id} ({handler_info['state']})")
+        except Exception as e:
+            logging.error(f"创建用户办理关系失败: {e}")
+            raise
+
+    def create_opinion_node(self, opinion_id, content, create_time):
+        """创建意见节点"""
+        try:
+            with self._driver.session() as session:
+                # 处理 create_time
+                if hasattr(create_time, 'strftime'):
+                    create_time = create_time.strftime('%Y-%m-%d %H:%M:%S')
+                
+                # 处理 content
+                if content and isinstance(content, str):
+                    content = content.strip()
+                    if not content:
+                        content = '无内容'
+                else:
+                    content = '无内容'
+
+                result = session.run("""
+                    MERGE (o:Opinion {id: $opinion_id})
+                    SET o.content = $content,
+                        o.create_time = $create_time,
+                        o.label = $content  // 设置 label 为意见内容的前20个字符
+                    RETURN o
+                """, 
+                opinion_id=opinion_id,
+                content=content,
+                create_time=create_time
+                )
+                logging.info(f"创建意见节点成功: {opinion_id}")
+                logging.info(f"意见内容: {content[:100]}...")
+                return result.single()['o']
+        except Exception as e:
+            logging.error(f"创建意见节点失败: {e}")
+            raise
+
+    def create_user_write_opinion_relation(self, user_no, opinion_id):
+        """创建用户填写意见关系"""
+        try:
+            with self._driver.session() as session:
+                result = session.run("""
+                    MATCH (u:User {user_no: $user_no})
+                    MATCH (o:Opinion {id: $opinion_id})
+                    MERGE (u)-[r:WROTE]->(o)
+                    SET r.label = '填写'
+                    RETURN r
+                """, user_no=user_no, opinion_id=opinion_id)
+                if result.single():
+                    logging.info(f"创建用户填写意见关系成功: {user_no} -> {opinion_id}")
+                else:
+                    logging.warning(f"未能创建用户填写意见关系: {user_no} -> {opinion_id}")
+        except Exception as e:
+            logging.error(f"创建用户填写意见关系失败: {e}")
+            raise
+
+    def create_opinion_belong_doc_relation(self, opinion_id, doc_id):
+        """创建意见属于公文关系"""
+        try:
+            with self._driver.session() as session:
+                result = session.run("""
+                    MATCH (o:Opinion {id: $opinion_id})
+                    MATCH (d:Document {id: $doc_id})
+                    MERGE (o)-[r:BELONGS_TO]->(d)
+                    SET r.label = '属于'
+                    RETURN r
+                """, opinion_id=opinion_id, doc_id=doc_id)
+                if result.single():
+                    logging.info(f"创建意见属于公文关系成功: {opinion_id} -> {doc_id}")
+                else:
+                    logging.warning(f"未能创建意见属于公文关系: {opinion_id} -> {doc_id}")
+        except Exception as e:
+            logging.error(f"创建意见属于公文关系失败: {e}")
+            raise

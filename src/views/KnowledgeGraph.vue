@@ -112,6 +112,9 @@
       </div>
       <div ref="graphRef" class="neo4j-graph"></div>
     </div>
+
+    <!-- 添加浮动图标栏 -->
+    <FloatingDock />
   </div>
 </template>
 
@@ -119,6 +122,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import * as d3 from 'd3'
 import axios from 'axios'
+import FloatingDock from '@/components/FloatingDock.vue'
 
 const graphRef = ref(null)
 const searchQuery = ref('')
@@ -136,77 +140,38 @@ const stats = ref({
   }
 })
 
-// 修改节点类型定义，统一图标和颜色
-const nodeTypes = ref([
-  { 
-    id: 'user', 
-    label: '用户', 
-    checked: true, 
-    count: 0,
-    icon: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
-    color: '#FF6B6B'
-  },
-  { 
-    id: 'organization', 
-    label: '部门', 
-    checked: true, 
-    count: 0,
-    icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',  // 修改部门图标
-    color: '#4ECDC4'
-  },
-  { 
-    id: 'document', 
-    label: '公文', 
-    checked: true, 
-    count: 0,
-    icon: 'M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z',  // 修改公文图标
-    color: '#FFD93D'
-  },
-  { 
-    id: 'system', 
-    label: '系统', 
-    checked: true, 
-    count: 0,
-    icon: 'M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z',  // 修改系统图标
-    color: '#45B7D1'
-  }
-])
-
-// 关系类型定义
-const relationTypes = [
-  { type: 'BELONGS_TO', label: '属于', color: '#FFD93D' },
-  { type: 'DRAFTED', label: '起草', color: '#FF6B6B' },
-  { type: 'REGISTERED', label: '登记', color: '#4ECDC4' }
-]
-
-// 添加筛选状态
+// 修改筛选状态定义
 const filterState = ref({
   selectedDepartment: null,
   selectedSystem: null,
   searchText: ''
 })
 
-// 添加节点样式定义
+// 修改节点样式定义
 const nodeStyles = {
-  'user': {
+  user: {
     color: '#FF6B6B',
     label: '用户'
   },
-  'organization': {
+  organization: {
     color: '#4ECDC4',
     label: '部门'
   },
-  'document': {
+  document: {
     color: '#FFD93D',
     label: '公文'
   },
-  'system': {
+  system: {
     color: '#45B7D1',
     label: '系统'
+  },
+  opinion: {
+    color: '#9333EA',
+    label: '意见'
   }
 }
 
-// 添加关系样式定义
+// 修改关系样式定义
 const relationStyles = {
   'BELONGS_TO': {
     color: '#FFD93D',
@@ -220,11 +185,58 @@ const relationStyles = {
     color: '#4ECDC4',
     label: '登记'
   },
-  'PROCESSED': {
-    color: '#45B7D1',
-    label: '办理'
+  'WROTE': {
+    color: '#9333EA',
+    label: '填写'
   }
 }
+
+// 修改节点类型定义
+const nodeTypes = ref([
+  { 
+    id: 'user', 
+    label: '用户', 
+    checked: true, 
+    count: 0,
+    icon: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'
+  },
+  { 
+    id: 'organization', 
+    label: '部门', 
+    checked: true, 
+    count: 0,
+    icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'
+  },
+  { 
+    id: 'document', 
+    label: '公文', 
+    checked: true, 
+    count: 0,
+    icon: 'M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z'
+  },
+  { 
+    id: 'system', 
+    label: '系统', 
+    checked: true, 
+    count: 0,
+    icon: 'M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z'
+  },
+  { 
+    id: 'opinion', 
+    label: '意见', 
+    checked: true, 
+    count: 0,
+    icon: 'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12h-2v-2h2v2zm0-4h-2V6h2v4z'
+  }
+])
+
+// 修改关系类型定义
+const relationTypes = [
+  { type: 'BELONGS_TO', label: '属于', color: '#FFD93D' },
+  { type: 'DRAFTED', label: '起草', color: '#FF6B6B' },
+  { type: 'REGISTERED', label: '登记', color: '#4ECDC4' },
+  { type: 'WROTE', label: '填写', color: '#9333EA' }
+]
 
 // 获取图谱数据
 const fetchGraphData = async () => {
@@ -434,7 +446,7 @@ const initGraph = (data) => {
     let content = `<h3>${d.label}</h3>`
     content += `<p>类型: ${nodeStyles[d.type.toLowerCase()].label}</p>`
     
-    // 根据节点类型显示不同的属性
+    // 根据节点��型显示不同的属性
     if (d.type === 'user') {
       content += `
         <p>工号: ${d.properties.user_no}</p>
@@ -462,7 +474,7 @@ const initGraph = (data) => {
     // 添加新的信息框
     document.body.appendChild(info)
     
-    // 设置信息框位置
+    // 设置信息框置
     const rect = event.target.getBoundingClientRect()
     info.style.left = `${rect.right + 10}px`
     info.style.top = `${rect.top}px`
@@ -582,34 +594,27 @@ const handleNodeClick = (event, d) => {
   const links = d3.selectAll('line')
   const type = d.type.toLowerCase()
 
-  // 高亮相关节点和连线
   if (type === 'user') {
-    // 点击用户节点时，显示其起草的发文和登记的收文
+    // 点击用户节点时，显示其填写的意见
     nodes.style('opacity', node => {
       const nodeType = node.type.toLowerCase()
-      return (nodeType === 'organization' && node.properties.org_no === d.properties.org_no) ||
-             (nodeType === 'document' && (
-               hasRelation(d.id, node.id, 'DRAFTED') || 
-               hasRelation(d.id, node.id, 'REGISTERED')
-             )) ||
+      return (nodeType === 'opinion' && hasRelation(d.id, node.id, 'WROTE')) ||
              node.id === d.id ? 1 : 0.1
     })
-  } else if (type === 'organization') {
-    // 点击部门节点时，显示其用户和系统
+  } else if (type === 'opinion') {
+    // 点击意见节点时，显示相关用户和公文
     nodes.style('opacity', node => {
       const nodeType = node.type.toLowerCase()
-      return (nodeType === 'user' && node.properties.org_no === d.properties.org_no) ||
-             (nodeType === 'system' && hasRelation(d.id, node.id, 'HAS_ACCESS')) ||
+      return (nodeType === 'user' && hasRelation(node.id, d.id, 'WROTE')) ||
+             (nodeType === 'document' && hasRelation(d.id, node.id, 'BELONGS_TO')) ||
              node.id === d.id ? 1 : 0.1
     })
   } else if (type === 'document') {
-    // 点击公文节点时，显示相关用户
+    // 点击公文节点时，显示相关意见
     nodes.style('opacity', node => {
       const nodeType = node.type.toLowerCase()
-      return (nodeType === 'user' && (
-        hasRelation(node.id, d.id, 'DRAFTED') || 
-        hasRelation(node.id, d.id, 'REGISTERED')
-      )) || node.id === d.id ? 1 : 0.1
+      return (nodeType === 'opinion' && hasRelation(node.id, d.id, 'BELONGS_TO')) ||
+             node.id === d.id ? 1 : 0.1
     })
   }
 
@@ -621,28 +626,30 @@ const handleNodeClick = (event, d) => {
   })
 }
 
-// 添加节点统计函数
+// 修改节点统计函数
 const updateNodeCounts = (data) => {
   if (!data || !data.nodes) return
   
-  const counts = {
-    user: 0,
-    organization: 0,
-    system: 0
-  }
+  // 重置所有计数
+  nodeTypes.value.forEach(type => {
+    type.count = 0
+  })
 
+  // 统计每种类型的节点数量
   data.nodes.forEach(node => {
     const type = node.type.toLowerCase()
-    if (counts.hasOwnProperty(type)) {
-      counts[type]++
+    const nodeType = nodeTypes.value.find(t => t.id === type)
+    if (nodeType) {
+      nodeType.count++
     }
   })
 
-  nodeTypes.value.forEach(type => {
-    type.count = counts[type.id] || 0
-  })
+  // 更新总节点数和关系数
+  stats.value.totalNodes = data.nodes.length
+  stats.value.totalRelations = data.links.length
 }
 
+// 在获取数据后立即更新统计
 onMounted(async () => {
   console.log('组件挂载...')
   try {
@@ -654,7 +661,7 @@ onMounted(async () => {
     const data = await fetchGraphData()
     console.log('获取到图谱数据:', data)
     
-    if (data) {
+    if (data && data.nodes.length > 0) {
       // 更新节点计数
       updateNodeCounts(data)
       // 初始化图谱

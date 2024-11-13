@@ -47,20 +47,45 @@ WHERE ROWNUM <= 20
 dispatch_query = """
 SELECT 
     d."ID", d."SUBJECT", d."DOC_TYPE",
-    d."DRAFT_USER_NO", d."DRAFT_DEPT_NO"
+    d."DRAFT_USER_NO", d."ATDO_READER"
 FROM "XYCS"."EGOV_DISPATCH" d
-WHERE d."DRAFT_USER_NO" IS NOT NULL  -- 确保有起草人
-
+WHERE d."DRAFT_USER_NO" IS NOT NULL
 """
 
 # 收文数据查询
 receival_query = """
 SELECT 
     r."ID", r."SUBJECT", r."DOC_TYPE",
-    r."DRAFT_USER_NO", r."DRAFT_USER_DEPT_NO"
+    r."DRAFT_USER_NO", r."ATDO_READER"
 FROM "XYCS"."EGOV_RECEIVAL" r
-WHERE r."DRAFT_USER_NO" IS NOT NULL  -- 确保有登记人
+WHERE r."DRAFT_USER_NO" IS NOT NULL
+"""
 
+# 添加意见数据查询
+opinion_query = """
+SELECT DISTINCT
+    o."ID", 
+    DBMS_LOB.SUBSTR(o."OPINION_CONTENT", 4000, 1) as "OPINION_CONTENT",
+    o."DOC_ID",
+    o."OPINION_USER_NO", 
+    o."CREATE_TIME"
+FROM "XYCS"."EGOV_OPINION" o
+WHERE EXISTS (
+    -- 检查用户是否在公文的办理人中
+    SELECT 1 
+    FROM (
+        SELECT "ID", "ATDO_READER"
+        FROM "XYCS"."EGOV_DISPATCH"
+        UNION ALL
+        SELECT "ID", "ATDO_READER"
+        FROM "XYCS"."EGOV_RECEIVAL"
+    ) docs
+    WHERE docs."ID" = o."DOC_ID"
+    AND docs."ATDO_READER" LIKE '%' || o."OPINION_USER_NO" || '%'
+)
+AND o."OPINION_USER_NO" IS NOT NULL
+AND o."DOC_ID" IS NOT NULL
+AND o."OPINION_CONTENT" IS NOT NULL
 """
 
 @api_bp.route('/generate', methods=['POST'])
@@ -102,7 +127,7 @@ def save_qa():
         qa_list = data.get('qaList', [])
         q_content = data.get('qContent', '')  # 从请求中获取左侧输入框内容
         
-        # 检查 Q_Info 表中是否已存在相同内容
+        # 检查 Q_Info 表中是已存在相同内容
         if is_qinfo_exists(q_content):
             return jsonify({"message": "内容已存在，请不要重复操作！"}), 200  # 返回提示信息
         
@@ -157,7 +182,7 @@ def is_qa_exists(question, answer):
     """检查问答对是否已存在"""
     cursor, conn = _connDB()
     if cursor is None or conn is None:
-        raise Exception("数据库连接失败")
+        raise Exception("数据连接失败")
 
     query = """
     SELECT COUNT(*) FROM "XYCS"."QA_INFO" 
@@ -551,7 +576,7 @@ def get_document_stats():
                 for row in cursor.fetchall()
             ]
 
-            # 获取文种分布统计
+            # 获文种分布统计
             category_query = f"""
             WITH combined_data AS (
                 SELECT "DOC_TYPE" as type_field FROM "XYCS"."EGOV_DISPATCH_DATA" WHERE {where_clause}
@@ -657,6 +682,12 @@ def init_knowledge_graph():
             receival_data = cursor.fetchall()
             print(f"获取到 {len(receival_data)} 条收文数据")
 
+            # 获取意见数据
+            print("执行意见查询...")
+            cursor.execute(opinion_query)
+            opinion_data = cursor.fetchall()
+            print(f"获取到 {len(opinion_data)} 条意见数据")
+
             # 初始化Neo4j图谱
             print("初始化Neo4j连接...")
             neo4j_db = Neo4jDB()
@@ -681,10 +712,8 @@ def init_knowledge_graph():
 
             # 创建发文节点和关系
             for row in dispatch_data:
-                doc_id, subject, doc_type, draft_user_no, draft_dept_no = row
+                doc_id, subject, doc_type, draft_user_no, atdo_reader = row
                 print(f"处理发文数据: {subject}")
-                print(f"起草人: {draft_user_no}")
-                print(f"部门: {draft_dept_no}")
                 
                 try:
                     # 创建发文节点
@@ -692,16 +721,15 @@ def init_knowledge_graph():
                     
                     # 创建用户起草关系
                     if draft_user_no:
-                        print(f"创建起草关系: {draft_user_no} -> {doc_id}")
                         neo4j_db.create_user_draft_dispatch(draft_user_no, doc_id)
+                    
                 except Exception as e:
                     print(f"处理发文数据失败: {e}")
 
             # 创建收文节点和关系
             for row in receival_data:
-                doc_id, subject, doc_type, draft_user_no, draft_dept_no = row
+                doc_id, subject, doc_type, draft_user_no, atdo_reader = row
                 print(f"处理收文数据: {subject}")
-                print(f"登记人: {draft_user_no}")
                 
                 try:
                     # 创建收文节点
@@ -709,12 +737,78 @@ def init_knowledge_graph():
                     
                     # 创建用户登记关系
                     if draft_user_no:
-                        print(f"创建登记关系: {draft_user_no} -> {doc_id}")
                         neo4j_db.create_user_register_receival(draft_user_no, doc_id)
-                        
+                    
                 except Exception as e:
                     print(f"处理收文数据失败: {e}")
                     print(f"详细信息 - 文档ID: {doc_id}, 登记人: {draft_user_no}")
+
+            # 创建意见节点和关系
+            for row in opinion_data:
+                opinion_id, content, doc_id, user_no, create_time = row
+                print(f"处理意见数据: {opinion_id}")
+                
+                try:
+                    # 检查用户是否在公文的办理人中
+                    cursor.execute("""
+                        SELECT "ATDO_READER"
+                        FROM (
+                            SELECT "ID", "ATDO_READER"
+                            FROM "XYCS"."EGOV_DISPATCH"
+                            UNION ALL
+                            SELECT "ID", "ATDO_READER"
+                            FROM "XYCS"."EGOV_RECEIVAL"
+                        ) docs
+                        WHERE docs."ID" = :doc_id
+                    """, {'doc_id': doc_id})
+                    
+                    atdo_reader = cursor.fetchone()
+                    if not atdo_reader:
+                        print(f"跳过意见 {opinion_id}，找不到对应的公文 {doc_id}")
+                        continue
+
+                    # 解析 ATDO_READER 并检查用户是否在其中
+                    try:
+                        atdo_data = json.loads(atdo_reader[0])
+                        user_in_atdo = any(
+                            handler.get('readerNo') == user_no 
+                            for handler in atdo_data
+                        )
+                        
+                        if not user_in_atdo:
+                            print(f"跳过意见 {opinion_id}，用户 {user_no} 不在公文办理人中")
+                            continue
+                            
+                    except json.JSONDecodeError:
+                        print(f"解析 ATDO_READER 失败: {atdo_reader[0]}")
+                        continue
+
+                    # 处理意见内容
+                    if content:
+                        content = content.strip()
+                        if content:
+                            content = content[:1000] + '...' if len(content) > 1000 else content
+                            print(f"意见内容: {content[:100]}...")
+                        else:
+                            content = '无内容'
+                    else:
+                        content = '无内容'
+
+                    # 创建意见节点
+                    neo4j_db.create_opinion_node(opinion_id, content, create_time)
+                    print(f"创建意见节点成功: {opinion_id}")
+                    
+                    # 创建用户填写意见的关系
+                    neo4j_db.create_user_write_opinion_relation(user_no, opinion_id)
+                    print(f"创建用户-意见关系成功: {user_no} -> {opinion_id}")
+                    
+                    # 创建意见属于公文的关系
+                    neo4j_db.create_opinion_belong_doc_relation(opinion_id, doc_id)
+                    print(f"创建意见-公文关系成功: {opinion_id} -> {doc_id}")
+                        
+                except Exception as e:
+                    print(f"处理意见数据失败: {e}")
+                    print(f"详细信息 - 意见ID: {opinion_id}, 用户: {user_no}, 文档ID: {doc_id}")
 
             print("知识图谱初始化完成")
             return jsonify({"message": "知识图谱初始化成功"}), 200
@@ -738,47 +832,18 @@ def get_knowledge_graph():
     """获取知识图谱数据"""
     print("开始获取知识图谱数据...")
     try:
-        # 创建新的Neo4j连接
         neo4j_db = Neo4jDB()
         neo4j_db.connect()
         
         try:
-            # 获取所有节点
+            # 获取节点和关系
             nodes = neo4j_db.get_all_nodes()
-            print(f"获取到 {len(nodes)} 个节点")
-            
-            # 获取所有关系
             relationships = neo4j_db.get_all_relationships()
-            print(f"获取到 {len(relationships)} 个关系")
             
-            # 格式化节点数据
-            formatted_nodes = []
-            for node, labels in nodes:
-                node_data = {
-                    'id': str(node.id),  # 确保ID是字符串
-                    'label': node.get('name', node.get('title', '')),
-                    'type': labels[0].lower(),
-                    'properties': dict(node)
-                }
-                formatted_nodes.append(node_data)
-                print(f"处理节点: {node_data}")
-
-            # 格式化关系数据
-            formatted_links = []
-            for rel in relationships:
-                link_data = {
-                    'source': str(rel['source']),  # 确保source是字符串
-                    'target': str(rel['target']),  # 确保target是字符串
-                    'type': rel['type']
-                }
-                formatted_links.append(link_data)
-                print(f"处理关系: {link_data}")
-
             response_data = {
-                'nodes': formatted_nodes,
-                'links': formatted_links
+                'nodes': nodes,
+                'links': relationships
             }
-            print(f"返回数据结构: {response_data}")
             return jsonify(response_data), 200
 
         finally:
@@ -791,3 +856,30 @@ def get_knowledge_graph():
             "error": "获取知识图谱数据失败",
             "details": str(e)
         }), 500
+
+def extract_handlers(atdo_reader):
+    """从ATDO_READER字段提取办理人工号"""
+    if not atdo_reader:
+        return []
+    try:
+        # 解析JSON字符串
+        handlers_data = json.loads(atdo_reader)
+        # 提取所有办理人的工号
+        handlers = []
+        for handler in handlers_data:
+            if handler.get('type') == 'user' and handler.get('readerNo'):
+                handlers.append({
+                    'user_no': handler['readerNo'],
+                    'user_name': handler['readName'],
+                    'org_no': handler['readOrgNo'],
+                    'state': handler['stateName'],
+                    'create_time': handler['createTime']
+                })
+        print(f"提取到的办理人信息: {handlers}")
+        return handlers
+    except json.JSONDecodeError as e:
+        print(f"解析ATDO_READER失败: {e}")
+        return []
+    except Exception as e:
+        print(f"处理办理人信息失败: {e}")
+        return []
