@@ -72,6 +72,23 @@
           </div>
         </div>
       </div>
+
+      <!-- 添加统计信息面板 -->
+      <div class="stats-section">
+        <div class="section-header">
+          <h3>图谱统计</h3>
+        </div>
+        <div class="stats-list">
+          <div class="stats-item">
+            <span class="stats-label">总节点数</span>
+            <span class="stats-value">{{ stats.totalNodes }}</span>
+          </div>
+          <div class="stats-item">
+            <span class="stats-label">总关系数</span>
+            <span class="stats-value">{{ stats.totalRelations }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 右侧图谱展示 -->
@@ -107,36 +124,52 @@ const graphRef = ref(null)
 const searchQuery = ref('')
 const simulation = ref(null)
 
-// 节点类型定义
+// 添加统计数据
+const stats = ref({
+  totalNodes: 0,
+  totalRelations: 0,
+  nodeTypeCounts: {
+    user: 0,
+    organization: 0,
+    document: 0,
+    system: 0
+  }
+})
+
+// 修改节点类型定义，统一图标和颜色
 const nodeTypes = ref([
   { 
     id: 'user', 
     label: '用户', 
     checked: true, 
     count: 0,
-    icon: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'
+    icon: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
+    color: '#FF6B6B'
   },
   { 
     id: 'organization', 
     label: '部门', 
     checked: true, 
     count: 0,
-    icon: 'M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z'
-    },
-    { 
-      id: 'document', 
-      label: '公文', 
-      checked: true, 
-      count: 0,
-      icon: 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z'
-    },
-    { 
-      id: 'system', 
-      label: '系统', 
-      checked: true, 
-      count: 0,
-      icon: 'M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6z'
-    }
+    icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',  // 修改部门图标
+    color: '#4ECDC4'
+  },
+  { 
+    id: 'document', 
+    label: '公文', 
+    checked: true, 
+    count: 0,
+    icon: 'M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z',  // 修改公文图标
+    color: '#FFD93D'
+  },
+  { 
+    id: 'system', 
+    label: '系统', 
+    checked: true, 
+    count: 0,
+    icon: 'M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z',  // 修改系统图标
+    color: '#45B7D1'
+  }
 ])
 
 // 关系类型定义
@@ -299,17 +332,46 @@ const initGraph = (data) => {
       .on('drag', dragged)
       .on('end', dragended))
 
-  // 添加节点圆圈
+  // 添加节点背景圆圈
   nodes.append('circle')
     .attr('r', 20)
     .attr('fill', d => nodeStyles[d.type.toLowerCase()]?.color || '#999')
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 2)
+
+  // 添加节点图标
+  nodes.append('path')
+    .attr('d', d => {
+      const type = d.type.toLowerCase()
+      return nodeTypes.value.find(t => t.id === type)?.icon || ''
+    })
+    .attr('fill', 'white')
+    .attr('transform', 'translate(-12, -12) scale(1)')
 
   // 添加节点标签
   nodes.append('text')
     .text(d => d.label)
-    .attr('dy', 30)
+    .attr('dy', 35)
     .attr('text-anchor', 'middle')
     .attr('fill', '#333')
+    .style('font-size', '12px')
+
+  // 更新统计数据
+  stats.value.totalNodes = data.nodes.length
+  stats.value.totalRelations = data.links.length
+  
+  // 更新节点类型统计
+  data.nodes.forEach(node => {
+    const type = node.type.toLowerCase()
+    if (stats.value.nodeTypeCounts[type] !== undefined) {
+      stats.value.nodeTypeCounts[type]++
+    }
+  })
+
+  // 更新节点类型计数
+  nodeTypes.value.forEach(type => {
+    type.count = stats.value.nodeTypeCounts[type.id] || 0
+  })
 
   // 创建力导向模拟
   simulation.value = d3.forceSimulation(data.nodes)
@@ -320,13 +382,17 @@ const initGraph = (data) => {
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(50))
 
-  // 更新函数
+  // 更新位置函数
   simulation.value.on('tick', () => {
     links
       .attr('x1', d => d.source.x)
       .attr('y1', d => d.source.y)
       .attr('x2', d => d.target.x)
       .attr('y2', d => d.target.y)
+
+    linkLabels
+      .attr('x', d => (d.source.x + d.target.x) / 2)
+      .attr('y', d => (d.source.y + d.target.y) / 2)
 
     nodes
       .attr('transform', d => `translate(${d.x},${d.y})`)
@@ -921,7 +987,7 @@ onUnmounted(() => {
   fill: #4b5563;
 }
 
-/* 统一节点和关系样 */
+/* 统一节点和关样 */
 .section-header {
   display: flex;
   align-items: center;
@@ -1004,5 +1070,49 @@ onUnmounted(() => {
 
 .relation-label {
   color: #374151;
+}
+
+.stats-section {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stats-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.stats-label {
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.stats-value {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.link-label {
+  pointer-events: none;
+  font-size: 12px;
+  text-shadow: 
+    -1px -1px 3px white,
+    -1px 1px 3px white,
+    1px -1px 3px white,
+    1px 1px 3px white;
 }
 </style> 
