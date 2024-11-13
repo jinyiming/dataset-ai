@@ -37,7 +37,7 @@ const dockItems = ref([
     label: '问答录入',
     icon: 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z',
     bgColor: '#10B981',
-    active: true
+    active: false
   },
   {
     id: 2,
@@ -51,24 +51,10 @@ const dockItems = ref([
     label: '知识图谱',
     icon: 'M17.5 3C15.57 3 14 4.57 14 6.5V8h-4V6.5C10 4.57 8.43 3 6.5 3S3 4.57 3 6.5 4.57 10 6.5 10H8v4H6.5C4.57 14 3 15.57 3 17.5S4.57 21 6.5 21s3.5-1.57 3.5-3.5V16h4v1.5c0 1.93 1.57 3.5 3.5 3.5s3.5-1.57 3.5-3.5-1.57-3.5-3.5-3.5H16v-4h1.5c1.93 0 3.5-1.57 3.5-3.5S19.43 3 17.5 3z',
     bgColor: '#F59E0B',
-    active: false
+    active: true
   },
   {
     id: 4,
-    label: '系统模版',
-    icon: 'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z',
-    bgColor: '#8B5CF6',
-    active: false
-  },
-  {
-    id: 5,
-    label: '设置',
-    icon: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
-    bgColor: '#8B5CF6',
-    active: false
-  },
-  {
-    id: 6,
     label: '公文统计',
     icon: 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z',
     bgColor: '#EC4899',
@@ -77,16 +63,16 @@ const dockItems = ref([
 ])
 
 const handleIconClick = (element) => {
+  dockItems.value.forEach(item => {
+    item.active = item.id === element.id
+  })
+
   if (element.label === '问答录入') {
     router.push('/')
   } else if (element.label === '数据分析') {
     router.push('/analysis')
   } else if (element.label === '知识图谱') {
     router.push('/knowledge-graph')
-  } else if (element.label === '系统模版') {
-    // 处理系统模板
-  } else if (element.label === '设置') {
-    router.push('/settings')
   } else if (element.label === '公文统计') {
     router.push('/document-stats')
   }
@@ -94,7 +80,6 @@ const handleIconClick = (element) => {
 </script>
 
 <style scoped>
-/* 复制 Home.vue 中的相关样式 */
 .floating-dock {
   position: fixed;
   left: 50%;
@@ -113,5 +98,67 @@ const handleIconClick = (element) => {
   pointer-events: auto;
 }
 
-/* ... 其他样式保持不变 ... */
+.dock-items-container {
+  display: flex;
+  gap: 20px;
+}
+
+.dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.dock-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.dock-icon {
+  width: 20px;
+  height: 20px;
+  color: white;
+}
+
+.dock-label {
+  font-size: 12px;
+  color: #374151;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.dock-item:hover {
+  transform: translateY(-4px);
+}
+
+.dock-item:hover .dock-label {
+  opacity: 1;
+}
+
+.dock-item:hover .dock-icon-wrapper {
+  filter: brightness(1.1);
+}
+
+.dock-item.active .dock-icon-wrapper {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
+}
 </style> 
