@@ -1,0 +1,20 @@
+# 达梦数据库配置
+dameng:
+  user: "SYSDBA"
+  password: "SYSDBA"
+  host: "localhost"
+  port: "5236"
+  autocommit: true
+
+# Oracle数据库配置
+oracle:
+  user: "XYCS"
+  password: "XYCS"
+  dsn: "192.168.6.251:1521/orcl"
+  encoding: "UTF-8"
+
+# Neo4j数据库配置
+neo4j:
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "12345678" 

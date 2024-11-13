@@ -1,24 +1,38 @@
 import dmPython
 import logging
 import uuid
+import yaml
+import os
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def _connDB():
-    db_user = "SYSDBA"
-    db_password = "SYSDBA"
-    db_host = "localhost"  # 确保这个地址是正确的
-    db_port = '5236'
-
+def load_db_config():
+    """加载数据库配置"""
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'database.yaml')
     try:
-        conn = dmPython.connect(user=db_user, password=db_password,
-                                server=db_host, port=db_port, autoCommit=True)
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        logging.error(f'加载数据库配置失败: {e}')
+        raise
+
+def _connDB():
+    """连接达梦数据库"""
+    try:
+        config = load_db_config()['dameng']
+        conn = dmPython.connect(
+            user=config['user'],
+            password=config['password'],
+            server=config['host'],
+            port=config['port'],
+            autoCommit=config['autocommit']
+        )
         cursor = conn.cursor()
-        logging.info('数据库连接成功！')
+        logging.info('达梦数据库连接成功！')
         return cursor, conn
     except Exception as e:
-        logging.error(f'数据库连接异常：{e}')
+        logging.error(f'达梦数据库连接异常：{e}')
         return None, None
 
 def close_connection(cursor, conn):

@@ -11,6 +11,8 @@ from db.db import close_connection, execute_query, get_template_by_type
 from common.doc_processor import process_docx
 import os
 import json
+from neo4j import GraphDatabase
+from db.neo4j_db import Neo4jDB  # 导入 Neo4jDB 类
 
 api_bp = Blueprint('api', __name__)
 
@@ -18,6 +20,48 @@ api_bp = Blueprint('api', __name__)
 DATABASE_URL = "sqlite:///qa_pairs.db"  # 使用 SQLite 数据库
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
+
+# Neo4j连接配置
+NEO4J_URI = "bolt://localhost:7687"
+NEO4J_USER = "neo4j"
+NEO4J_PASSWORD = "12345678"
+
+# 创建 Neo4jDB 实例
+neo4j_db = Neo4jDB()
+
+# 添加查询语句定义
+# 用户和组织数据查询
+user_query = """
+SELECT DISTINCT 
+    u."USER_NO", u."USER_NAME", 
+    o."ORG_NO", o."ORG_NAME",
+    r."SYSTEM_NO", r."SYSTEM_NAME"
+FROM "XYCS"."UMS_USER" u
+JOIN "XYCS"."UMS_USER_ORG_RELATE" uor ON u."USER_NO" = uor."USER_NO"
+JOIN "XYCS"."UMS_ORG" o ON uor."ORG_NO" = o."ORG_NO"
+LEFT JOIN "XYCS"."RMS_SYSTEM" r ON o."SYSTEM_NO" = r."SYSTEM_NO"
+WHERE ROWNUM <= 20
+"""
+
+# 发文数据查询
+dispatch_query = """
+SELECT 
+    d."ID", d."SUBJECT", d."DOC_TYPE",
+    d."DRAFT_USER_NO", d."DRAFT_DEPT_NO"
+FROM "XYCS"."EGOV_DISPATCH" d
+WHERE d."DRAFT_USER_NO" IS NOT NULL  -- 确保有起草人
+
+"""
+
+# 收文数据查询
+receival_query = """
+SELECT 
+    r."ID", r."SUBJECT", r."DOC_TYPE",
+    r."DRAFT_USER_NO", r."DRAFT_USER_DEPT_NO"
+FROM "XYCS"."EGOV_RECEIVAL" r
+WHERE r."DRAFT_USER_NO" IS NOT NULL  -- 确保有登记人
+
+"""
 
 @api_bp.route('/generate', methods=['POST'])
 def generate_qa():
@@ -449,7 +493,7 @@ def get_document_stats():
 
         cursor, conn = _connDB()
         if cursor is None or conn is None:
-            raise Exception("数据库连接失败")
+            raise Exception("数据库连失败")
 
         try:
             # 构建基础条件
@@ -546,7 +590,7 @@ def get_document_stats():
                     ).fetchone()[0]
                 },
                 {
-                    "name": "公文交换",
+                    "name": "公文换",
                     "value": cursor.execute(
                         f'SELECT COUNT(*) FROM "XYCS"."EGOV_EX_DOC_DATA" WHERE {where_clause}',
                         params
@@ -581,5 +625,169 @@ def get_document_stats():
         print(f"处理公文统计数据失败: {e}")  # 添加错误日志
         return jsonify({
             "error": "获取统计数据失败",
+            "details": str(e)
+        }), 500
+
+@api_bp.route('/init-knowledge-graph', methods=['GET'])
+def init_knowledge_graph():
+    """初始化知识图谱数据"""
+    print("开始初始化知识图谱...")
+    neo4j_db = None
+    try:
+        cursor, conn = _connDB()
+        if cursor is None or conn is None:
+            raise Exception("数据库连接失败")
+
+        try:
+            # 获取用户和组织数据
+            print("执行用户查询...")
+            cursor.execute(user_query)
+            user_data = cursor.fetchall()
+            print(f"获取到 {len(user_data)} 条用户数据")
+
+            # 获取发文数据
+            print("执行发文查询...")
+            cursor.execute(dispatch_query)
+            dispatch_data = cursor.fetchall()
+            print(f"获取到 {len(dispatch_data)} 条发文数据")
+
+            # 获取收文数据
+            print("执行收文查询...")
+            cursor.execute(receival_query)
+            receival_data = cursor.fetchall()
+            print(f"获取到 {len(receival_data)} 条收文数据")
+
+            # 初始化Neo4j图谱
+            print("初始化Neo4j连接...")
+            neo4j_db = Neo4jDB()
+            neo4j_db.connect()
+            neo4j_db.clear_graph()
+
+            # 创建节点和关系
+            print("开始创建节点和关系...")
+            
+            # 创建用户和组织节点及关系
+            for row in user_data:
+                user_no, user_name, org_no, org_name, system_no, system_name = row
+                print(f"处理用户数据: {user_name}")
+                
+                neo4j_db.create_user_node(user_no, user_name)
+                neo4j_db.create_org_node(org_no, org_name)
+                neo4j_db.create_user_org_relation(user_no, org_no)
+                
+                if system_no and system_name:
+                    neo4j_db.create_system_node(system_no, system_name)
+                    neo4j_db.create_org_system_relation(org_no, system_no)
+
+            # 创建发文节点和关系
+            for row in dispatch_data:
+                doc_id, subject, doc_type, draft_user_no, draft_dept_no = row
+                print(f"处理发文数据: {subject}")
+                print(f"起草人: {draft_user_no}")
+                print(f"部门: {draft_dept_no}")
+                
+                try:
+                    # 创建发文节点
+                    neo4j_db.create_dispatch_doc_node(doc_id, subject, doc_type)
+                    
+                    # 创建用户起草关系
+                    if draft_user_no:
+                        print(f"创建起草关系: {draft_user_no} -> {doc_id}")
+                        neo4j_db.create_user_draft_dispatch(draft_user_no, doc_id)
+                except Exception as e:
+                    print(f"处理发文数据失败: {e}")
+
+            # 创建收文节点和关系
+            for row in receival_data:
+                doc_id, subject, doc_type, draft_user_no, draft_dept_no = row
+                print(f"处理收文数据: {subject}")
+                print(f"登记人: {draft_user_no}")
+                
+                try:
+                    # 创建收文节点
+                    neo4j_db.create_receival_doc_node(doc_id, subject, doc_type)
+                    
+                    # 创建用户登记关系
+                    if draft_user_no:
+                        print(f"创建登记关系: {draft_user_no} -> {doc_id}")
+                        neo4j_db.create_user_register_receival(draft_user_no, doc_id)
+                        
+                except Exception as e:
+                    print(f"处理收文数据失败: {e}")
+                    print(f"详细信息 - 文档ID: {doc_id}, 登记人: {draft_user_no}")
+
+            print("知识图谱初始化完成")
+            return jsonify({"message": "知识图谱初始化成功"}), 200
+
+        finally:
+            close_connection(cursor, conn)
+            if neo4j_db:
+                neo4j_db.close()
+
+    except Exception as e:
+        print(f"初始化知识图谱失败: {e}")
+        if neo4j_db:
+            neo4j_db.close()
+        return jsonify({
+            "error": "初始化知识图谱失败",
+            "details": str(e)
+        }), 500
+
+@api_bp.route('/knowledge-graph', methods=['GET'])
+def get_knowledge_graph():
+    """获取知识图谱数据"""
+    print("开始获取知识图谱数据...")
+    try:
+        # 创建新的Neo4j连接
+        neo4j_db = Neo4jDB()
+        neo4j_db.connect()
+        
+        try:
+            # 获取所有节点
+            nodes = neo4j_db.get_all_nodes()
+            print(f"获取到 {len(nodes)} 个节点")
+            
+            # 获取所有关系
+            relationships = neo4j_db.get_all_relationships()
+            print(f"获取到 {len(relationships)} 个关系")
+            
+            # 格式化节点数据
+            formatted_nodes = []
+            for node, labels in nodes:
+                node_data = {
+                    'id': str(node.id),  # 确保ID是字符串
+                    'label': node.get('name', node.get('title', '')),
+                    'type': labels[0].lower(),
+                    'properties': dict(node)
+                }
+                formatted_nodes.append(node_data)
+                print(f"处理节点: {node_data}")
+
+            # 格式化关系数据
+            formatted_links = []
+            for rel in relationships:
+                link_data = {
+                    'source': str(rel['source']),  # 确保source是字符串
+                    'target': str(rel['target']),  # 确保target是字符串
+                    'type': rel['type']
+                }
+                formatted_links.append(link_data)
+                print(f"处理关系: {link_data}")
+
+            response_data = {
+                'nodes': formatted_nodes,
+                'links': formatted_links
+            }
+            print(f"返回数据结构: {response_data}")
+            return jsonify(response_data), 200
+
+        finally:
+            neo4j_db.close()
+            print("Neo4j连接已关闭")
+
+    except Exception as e:
+        print(f"获取知识图谱数据失败: {e}")
+        return jsonify({
+            "error": "获取知识图谱数据失败",
             "details": str(e)
         }), 500
