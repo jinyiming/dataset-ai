@@ -199,4 +199,3 @@ class QAModel:
                     "answer": f"这是示例问题 {i + 1} 的�����答案。"
                 })
         return result
-

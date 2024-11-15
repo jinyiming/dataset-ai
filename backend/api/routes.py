@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, send_file, make_response
 import requests
 from config import Config
 from sqlalchemy import create_engine
@@ -13,6 +13,9 @@ import os
 import json
 from neo4j import GraphDatabase
 from db.neo4j_db import Neo4jDB  # 导入 Neo4jDB 类
+from utils.crypto import decrypt_data
+import time
+from pathlib import Path
 
 api_bp = Blueprint('api', __name__)
 
@@ -45,11 +48,13 @@ WHERE ROWNUM <= 20
 
 # 发文数据查询
 dispatch_query = """
-SELECT 
-    d."ID", d."SUBJECT", d."DOC_TYPE",
-    d."DRAFT_USER_NO", d."ATDO_READER"
+SELECT DISTINCT
+    d."ID", d."SUBJECT", d."DOC_MARK",
+    a."ID" as att_id, a."FILE_NAME", a."FILE_SIZE", a."MODULE_ID", a."FILE_SUFFIX"
 FROM "XYCS"."EGOV_DISPATCH" d
-WHERE d."DRAFT_USER_NO" IS NOT NULL
+LEFT JOIN "XYCS"."EGOV_ATT" a ON d."ID" = a."DOC_ID"
+WHERE d."SUBJECT" LIKE :query
+AND ROWNUM <= 10 AND a."STATUS" = '常'
 """
 
 # 收文数据查询
@@ -231,7 +236,7 @@ def process_document():
         # 处理文档
         sections = process_docx(temp_path)
 
-        # 删除临时文件
+        # 删除��时文件
         os.remove(temp_path)
 
         return jsonify({
@@ -409,7 +414,7 @@ def get_file_stats():
 
             where_clause = ' AND '.join(conditions)
 
-            # 获取总文件数和总大小
+            # 获取总文件和总大小
             count_query = f"""
             SELECT COUNT(*), COALESCE(SUM("FILE_SIZE"), 0)
             FROM "XYCS"."EGOV_ATT_DATA"
@@ -466,7 +471,7 @@ def get_file_stats():
             """
             cursor.execute(format_query, params)
             format_distribution = [
-                {"name": row[0] or '未知格式', "value": row[1]}
+                {"name": row[0] or '格式', "value": row[1]}
                 for row in cursor.fetchall()
             ]
 
@@ -504,7 +509,7 @@ def get_file_stats():
     except Exception as e:
         print(f"获取文件统计数据失败: {e}")
         return jsonify({
-            "error": "获取统计数据失败",
+            "error": "获统计数据失败",
             "details": str(e)
         }), 500
 
@@ -531,7 +536,7 @@ def get_document_stats():
 
             where_clause = ' AND '.join(conditions) if conditions else '1=1'
 
-            # 获取文件标题分类统计（根据标题关键字分类）
+            # 获取文件标题分类统计（根据标题关字分类）
             subject_query = f"""
             WITH combined_data AS (
                 SELECT "SUBJECT" FROM "XYCS"."EGOV_DISPATCH_DATA" WHERE {where_clause}
@@ -671,7 +676,7 @@ def init_knowledge_graph():
             print(f"获取到 {len(user_data)} 条用户数据")
 
             # 获取发文数据
-            print("执行发文查询...")
+            print("执发文查询...")
             cursor.execute(dispatch_query)
             dispatch_data = cursor.fetchall()
             print(f"获取到 {len(dispatch_data)} 条发文数据")
@@ -800,9 +805,9 @@ def init_knowledge_graph():
                     
                     # 创建用户填写意见的关系
                     neo4j_db.create_user_write_opinion_relation(user_no, opinion_id)
-                    print(f"创建用户-意见关系成功: {user_no} -> {opinion_id}")
+                    print(f"创建用户-见关系成: {user_no} -> {opinion_id}")
                     
-                    # 创建意见属于公文的关系
+                    # 创建意见属于公文的系
                     neo4j_db.create_opinion_belong_doc_relation(opinion_id, doc_id)
                     print(f"创建意见-公文关系成功: {opinion_id} -> {doc_id}")
                         
@@ -858,7 +863,7 @@ def get_knowledge_graph():
         }), 500
 
 def extract_handlers(atdo_reader):
-    """从ATDO_READER字段提取办理人工号"""
+    """从ATDO_READER字段提取办理工号"""
     if not atdo_reader:
         return []
     try:
@@ -883,3 +888,322 @@ def extract_handlers(atdo_reader):
     except Exception as e:
         print(f"处理办理人信息失败: {e}")
         return []
+
+def get_file_type_label(file_type):
+    """获取文件类型的显示标签"""
+    type_map = {
+        'main_doc': '正文',
+        'attach': '附件',
+        'dealForm': '处理签',
+        'main_ofd': '版式文件',
+        'exDealForm': '公文交换表单',
+        'handle': '手写批注',
+        'main_upload': '正文上传件',
+        'notation': '正文批注'
+    }
+    return type_map.get(file_type, file_type)
+
+@api_bp.route('/search', methods=['GET'])
+def search_documents():
+    """搜索文档接口"""
+    try:
+        query = request.args.get('query', '')
+        if not query:
+            return jsonify({"error": "缺少搜索参数"}), 400
+
+        cursor, conn = _connDB()
+        if cursor is None or conn is None:
+            raise Exception("数��库连接失败")
+
+        try:
+            # 查询发文
+            dispatch_query = """
+            SELECT DISTINCT
+                d."ID", d."SUBJECT", d."DOC_MARK",
+                a."ID" as att_id, a."FILE_NAME", a."FILE_SIZE", 
+                a."MODULE_ID", a."FILE_SUFFIX", a."TYPE"
+            FROM "XYCS"."EGOV_DISPATCH" d
+            LEFT JOIN "XYCS"."EGOV_ATT" a ON d."ID" = a."DOC_ID"
+            WHERE d."SUBJECT" LIKE :query
+            AND a."STATUS" = '正常'
+            ORDER BY a."TYPE"
+            """
+            cursor.execute(dispatch_query, {'query': f'%{query}%'})
+            dispatch_results = cursor.fetchall()
+            
+            # 查询收文
+            receival_query = """
+            SELECT DISTINCT
+                r."ID", r."SUBJECT", r."DOC_MARK",
+                a."ID" as att_id, a."FILE_NAME", a."FILE_SIZE", 
+                a."MODULE_ID", a."FILE_SUFFIX", a."TYPE"
+            FROM "XYCS"."EGOV_RECEIVAL" r
+            LEFT JOIN "XYCS"."EGOV_ATT" a ON r."ID" = a."DOC_ID"
+            WHERE r."SUBJECT" LIKE :query
+            AND a."STATUS" = '正常'
+            ORDER BY a."TYPE"
+            """
+            cursor.execute(receival_query, {'query': f'%{query}%'})
+            receival_results = cursor.fetchall()
+            
+            # 查询公文交换
+            exchange_query = """
+            SELECT DISTINCT
+                e."ID", e."SUBJECT", e."DOC_MARK",
+                a."ID" as att_id, a."FILE_NAME", a."FILE_SIZE", 
+                a."MODULE_ID", a."FILE_SUFFIX", a."TYPE"
+            FROM "XYCS"."EGOV_EX_DOC" e
+            LEFT JOIN "XYCS"."EGOV_ATT" a ON e."ID" = a."DOC_ID"
+            WHERE e."SUBJECT" LIKE :query
+            AND a."STATUS" = '正常'
+            ORDER BY a."TYPE"
+            """
+            cursor.execute(exchange_query, {'query': f'%{query}%'})
+            exchange_results = cursor.fetchall()
+            
+            # 处理结果
+            def process_results(results):
+                docs = {}
+                for row in results:
+                    doc_id = row[0]
+                    if doc_id not in docs:
+                        docs[doc_id] = {
+                            'id': doc_id,
+                            'title': row[1],
+                            'doc_no': row[2] or '无文号',
+                            'files': {}  # 按类型分组的文件
+                        }
+                    
+                    if row[3]:  # 如果有附件
+                        file_type = row[8]  # 文件类型
+                        file_suffix = row[7].lower() if row[7] else ''  # 获取文件后缀并转小写
+                        
+                        # 按文件类型分组
+                        if file_type not in docs[doc_id]['files']:
+                            docs[doc_id]['files'][file_type] = []
+                            
+                        docs[doc_id]['files'][file_type].append({
+                            'id': row[3],
+                            'name': row[4],
+                            'size': row[5],
+                            'moduleId': row[6],
+                            'suffix': file_suffix,  # 添加文件后缀
+                            'type': file_type,
+                            'typeLabel': get_file_type_label(file_type)
+                        })
+                
+                # 转换为列表并排序文件类型
+                result = []
+                for doc in docs.values():
+                    # 将文件类型转换为有序列表
+                    files_list = []
+                    # 按照指定顺序添加文件类型
+                    type_order = ['main_doc', 'main_ofd', 'main_upload', 
+                                'dealForm', 'exDealForm', 'attach', 
+                                'handle', 'notation']
+                    for file_type in type_order:
+                        if file_type in doc['files']:
+                            files_list.append({
+                                'type': file_type,
+                                'typeLabel': get_file_type_label(file_type),
+                                'files': sorted(doc['files'][file_type], key=lambda x: x['name'])  # 按文件名排序
+                            })
+                    doc['files'] = files_list
+                    result.append(doc)
+                return result
+
+            response_data = {
+                'dispatch': process_results(dispatch_results),
+                'receival': process_results(receival_results),
+                'exchange': process_results(exchange_results)
+            }
+
+            return jsonify(response_data), 200
+
+        finally:
+            close_connection(cursor, conn)
+
+    except Exception as e:
+        print(f"搜索失败: {e}")
+        return jsonify({
+            "error": "搜索失败",
+            "details": str(e)
+        }), 500
+
+@api_bp.route('/download-file', methods=['GET'])
+def download_file():
+    """文件下载接口"""
+    try:
+        file_id = request.args.get('id')
+        module_id = request.args.get('moduleId')
+        api_url = request.args.get('api')
+        token = request.args.get('token')
+        file_suffix = request.args.get('suffix', '').lower()  # 获取文件后缀
+
+        if not all([file_id, module_id, api_url, token]):
+            return jsonify({"error": "缺少必要参数"}), 400
+
+        # 构建下载URL
+        download_url = f"{api_url}/attachment/downloadEgovAttFile"
+        
+        # 设置请求头
+        headers = {
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Cookie": f"x-authenticated=true; x-auth-token={token}"
+        }
+
+        # 下载文件
+        response = requests.get(
+            download_url,
+            params={
+                'id': file_id,
+                'moduleId': module_id,
+                'x-auth-token': token
+            },
+            headers=headers,
+            verify=False
+        )
+        
+        if response.status_code != 200:
+            return jsonify({
+                "error": "文件下载失败",
+                "details": response.text
+            }), response.status_code
+
+        # 如果是HTML文件，直接返回内容
+        if file_suffix == 'html':
+            content = response.content.decode('utf-8')
+            return jsonify({
+                "type": "html",
+                "content": content
+            }), 200
+
+        # 其他文件类型保存到临时目录
+        temp_dir = Path('temp_files')
+        temp_dir.mkdir(exist_ok=True)
+        temp_filename = f"{file_id}_{uuid.uuid4().hex[:8]}"
+        temp_file_path = temp_dir / temp_filename
+
+        # 保存文件
+        with open(temp_file_path, 'wb') as f:
+            f.write(response.content)
+
+        return jsonify({
+            "type": "file",
+            "tempFile": str(temp_file_path),
+            "contentType": response.headers.get('content-type')
+        }), 200
+
+    except Exception as e:
+        print(f"文件下载失败: {e}")
+        return jsonify({
+            "error": "文件下载失败",
+            "details": str(e)
+        }), 500
+
+# 添加获取临时文件的接口
+@api_bp.route('/temp-file/<path:filename>', methods=['GET'])
+def get_temp_file(filename):
+    """获取临时文件"""
+    try:
+        return send_from_directory('temp_files', filename)
+    except Exception as e:
+        return jsonify({
+            "error": "获取文件失败",
+            "details": str(e)
+        }), 404
+
+def get_file_icon(file_suffix):
+    """根据文件后缀返回对应的图标"""
+    icon_map = {
+        'pdf': 'document',
+        'doc': 'word',
+        'docx': 'word',
+        'xls': 'excel',
+        'xlsx': 'excel',
+        'ppt': 'powerpoint',
+        'pptx': 'powerpoint',
+        'jpg': 'image',
+        'jpeg': 'image',
+        'png': 'image',
+        'gif': 'image',
+        'html': 'html',
+        'txt': 'text'
+    }
+    return icon_map.get(file_suffix, 'file')  # 默认返回通用文件图标
+
+@api_bp.route('/proxy-file', methods=['GET'])
+def proxy_file():
+    """文件代理接口"""
+    try:
+        file_id = request.args.get('id')
+        module_id = request.args.get('moduleId')
+        api_url = request.args.get('api')
+        token = request.args.get('token')
+
+        if not all([file_id, module_id, api_url, token]):
+            return jsonify({"error": "缺少必要参数"}), 400
+
+        # 构建下载URL
+        download_url = f"{api_url}/attachment/downloadEgovAttFile"
+        
+        # 设置请求头
+        headers = {
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Cookie": f"x-authenticated=true; x-auth-token={token}"
+        }
+
+        try:
+            # 获取文件
+            response = requests.get(
+                download_url,
+                params={
+                    'id': file_id,
+                    'moduleId': module_id,
+                    'x-auth-token': token
+                },
+                headers=headers,
+                stream=True,
+                verify=False
+            )
+            
+            if response.status_code != 200:
+                return jsonify({
+                    "error": "文件获取失败",
+                    "details": response.text
+                }), response.status_code
+
+            # 创建Flask响应
+            proxy_response = make_response(response.content)
+            
+            # 复制原始响应的头部信息
+            for key, value in response.headers.items():
+                if key.lower() not in ['content-length', 'content-encoding']:
+                    proxy_response.headers[key] = value
+            
+            # 添加CORS头
+            proxy_response.headers['Access-Control-Allow-Origin'] = '*'
+            proxy_response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            proxy_response.headers['Access-Control-Allow-Headers'] = '*'
+
+            return proxy_response
+
+        except requests.exceptions.RequestException as e:
+            print(f"代理请求失败: {e}")
+            return jsonify({
+                "error": "文件获取失败",
+                "details": str(e)
+            }), 500
+
+    except Exception as e:
+        print(f"处理文件代理请求失败: {e}")
+        return jsonify({
+            "error": "文件获取失败",
+            "details": str(e)
+        }), 500

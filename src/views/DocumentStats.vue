@@ -64,6 +64,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 添加浮动图标栏 -->
+    <FloatingDock />
   </div>
 </template>
 
@@ -71,6 +74,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
 import axios from 'axios'
+import FloatingDock from '@/components/FloatingDock.vue'
 
 // 初始化响应式数据
 const totalDocs = ref(0)

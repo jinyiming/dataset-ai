@@ -3,7 +3,8 @@ import Home from '../views/Home.vue'
 import DataAnalysis from '../views/DataAnalysis.vue'
 import DocumentStats from '../views/DocumentStats.vue'
 import KnowledgeGraph from '../views/KnowledgeGraph.vue'
-
+import SettingsPage from '../views/SettingsPage.vue'
+import SearchEngine from '../views/SearchEngine.vue'
 const routes = [
   {
     path: '/',
@@ -24,6 +25,16 @@ const routes = [
     path: '/knowledge-graph',
     name: 'KnowledgeGraph',
     component: KnowledgeGraph
+  },  
+  {
+    path: '/settings',
+    name: 'SettingsPage',
+    component: SettingsPage
+  },
+  {
+    path: '/search',
+    name: 'SearchEngine',
+    component: SearchEngine
   }
 ]
 

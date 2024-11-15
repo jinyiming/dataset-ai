@@ -31,3 +31,8 @@ npm run lint
 
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
+
+
+安装：
+ npm install stream-browserify
+ 
