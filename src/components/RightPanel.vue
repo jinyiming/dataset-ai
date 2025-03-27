@@ -36,7 +36,7 @@
       </table>
     </div>
 
-    <!-- 添加模���选择对话框 -->
+    <!-- 添加模板选择对话框 -->
     <div v-if="showTemplateDialog" class="template-dialog">
       <div class="dialog-content">
         <div class="dialog-header">
@@ -118,7 +118,6 @@
 
 <script setup>
 import { ref } from 'vue'
-import axios from 'axios'
 
 const props = defineProps({
   qaList: {
@@ -233,7 +232,7 @@ const getFieldDescription = (template, field) => {
   }
 }
 
-// 获取字段占位���
+// 获取字段占位符
 const getFieldPlaceholder = (template, field) => {
   return `请输入${field}的值`
 }
@@ -241,17 +240,47 @@ const getFieldPlaceholder = (template, field) => {
 // 定义导出成功状态
 const showExportSuccess = ref(false)
 
-// 处理模板对话框显示
-const handleShowTemplate = () => {
-  emit('show-template-dialog')
-}
-
 // 导出成功后的处理
 const handleExportSuccess = () => {
   showExportSuccess.value = true
   setTimeout(() => {
     showExportSuccess.value = false
   }, 3000)
+}
+
+// 添加导出报表功能
+const exportExcel = () => {
+  if (props.qaList.length === 0) {
+    alert('没有可导出的数据')
+    return
+  }
+  
+  // 创建表格数据
+  let csvContent = "数据序号,问题,答案\n"
+  
+  props.qaList.forEach((qa, index) => {
+    // 处理CSV中的特殊字符
+    const question = `"${qa.question.replace(/"/g, '""')}"`
+    const answer = `"${qa.answer.replace(/"/g, '""')}"`
+    csvContent += `${index + 1},${question},${answer}\n`
+  })
+  
+  // 创建Blob对象
+  const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8' })
+  const fileName = `问答报表_${new Date().toLocaleDateString()}.csv`
+  
+  // 创建下载链接
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+  
+  // 显示导出成功提示
+  handleExportSuccess()
 }
 </script>
 

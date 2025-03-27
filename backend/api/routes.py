@@ -910,7 +910,7 @@ def search_documents():
         query = request.args.get('query', '')
         if not query:
             return jsonify({"error": "缺少搜索参数"}), 400
-
+        print(f"搜索参数: {query}")
         cursor, conn = _connDB()
         if cursor is None or conn is None:
             raise Exception("数��库连接失败")
@@ -922,8 +922,8 @@ def search_documents():
                 d."ID", d."SUBJECT", d."DOC_MARK",
                 a."ID" as att_id, a."FILE_NAME", a."FILE_SIZE", 
                 a."MODULE_ID", a."FILE_SUFFIX", a."TYPE"
-            FROM "XYCS"."EGOV_DISPATCH" d
-            LEFT JOIN "XYCS"."EGOV_ATT" a ON d."ID" = a."DOC_ID"
+            FROM "XYCS"."EGOV_DISPATCH_DATA" d
+            LEFT JOIN "XYCS"."EGOV_ATT_DATA" a ON d."ID" = a."DOC_ID"
             WHERE d."SUBJECT" LIKE :query
             AND a."STATUS" = '正常'
             ORDER BY a."TYPE"
@@ -937,8 +937,8 @@ def search_documents():
                 r."ID", r."SUBJECT", r."DOC_MARK",
                 a."ID" as att_id, a."FILE_NAME", a."FILE_SIZE", 
                 a."MODULE_ID", a."FILE_SUFFIX", a."TYPE"
-            FROM "XYCS"."EGOV_RECEIVAL" r
-            LEFT JOIN "XYCS"."EGOV_ATT" a ON r."ID" = a."DOC_ID"
+            FROM "XYCS"."EGOV_RECEIVAL_DATA" r
+            LEFT JOIN "XYCS"."EGOV_ATT_DATA" a ON r."ID" = a."DOC_ID"
             WHERE r."SUBJECT" LIKE :query
             AND a."STATUS" = '正常'
             ORDER BY a."TYPE"
@@ -952,8 +952,8 @@ def search_documents():
                 e."ID", e."SUBJECT", e."DOC_MARK",
                 a."ID" as att_id, a."FILE_NAME", a."FILE_SIZE", 
                 a."MODULE_ID", a."FILE_SUFFIX", a."TYPE"
-            FROM "XYCS"."EGOV_EX_DOC" e
-            LEFT JOIN "XYCS"."EGOV_ATT" a ON e."ID" = a."DOC_ID"
+            FROM "XYCS"."EGOV_EX_DOC_DATA" e
+            LEFT JOIN "XYCS"."EGOV_ATT_DATA" a ON e."ID" = a."DOC_ID"
             WHERE e."SUBJECT" LIKE :query
             AND a."STATUS" = '正常'
             ORDER BY a."TYPE"

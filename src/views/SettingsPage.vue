@@ -1,5 +1,11 @@
 <template>
   <div class="settings-page">
+  
+    
+    <div class="ai-logo-bottom">
+      <span class="ai-text-bottom">AI</span>
+    </div>
+    
     <div class="settings-container">
       <div class="settings-header">
         <h1>模板设计器</h1>
@@ -265,6 +271,7 @@ const saveTemplate = async () => {
 
 <style scoped>
 .settings-page {
+  position: relative;
   min-height: 100vh;
   background: #f9fafb;
   padding: 20px;
@@ -692,4 +699,258 @@ label {
   border-color: #10a37f;
   box-shadow: 0 0 0 2px rgba(16, 163, 127, 0.1);
 }
+
+/* 修改 AI 图标样式 */
+.ai-logo {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+  width: 70px;
+  height: 70px;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 
+    0 0 30px rgba(255, 255, 255, 0.8),
+    inset 0 0 20px rgba(0, 0, 0, 0.05);
+  animation: float 6s ease-in-out infinite;
+}
+
+.ai-text {
+  font-family: 'Orbitron', sans-serif;  /* 使用更有科技感的字体 */
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  transform: skew(-10deg);  /* 添加倾斜效果 */
+  background: linear-gradient(
+    135deg,
+    #FF0080 0%,
+    #7928CA 25%,
+    #0070F3 50%,
+    #00DFD8 75%,
+    #FF0080 100%
+  );
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 
+    2px 2px 4px rgba(0, 0, 0, 0.2),
+    0 0 20px rgba(255, 0, 128, 0.3);
+  animation: 
+    gradient 8s linear infinite,
+    neon 1.5s ease-in-out infinite alternate;
+  position: relative;
+}
+
+.ai-text::before {
+  content: 'AI';
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0.5;
+  filter: blur(8px);
+  transform: translateZ(-1px);
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes neon {
+  from {
+    text-shadow: 
+      0 0 10px rgba(255, 0, 128, 0.7),
+      0 0 20px rgba(255, 0, 128, 0.5),
+      0 0 30px rgba(255, 0, 128, 0.3);
+  }
+  to {
+    text-shadow: 
+      0 0 20px rgba(0, 112, 243, 0.7),
+      0 0 40px rgba(0, 112, 243, 0.5),
+      0 0 60px rgba(0, 112, 243, 0.3);
+  }
+}
+
+@keyframes glow {
+  from {
+    opacity: 0.3;
+    filter: blur(12px);
+  }
+  to {
+    opacity: 0.6;
+    filter: blur(4px);
+  }
+}
+
+/* 修改左下角 AI 图标的样式 */
+.ai-logo-bottom {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 100;
+  width: 70px;
+  height: 70px;
+  background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
+  border-radius: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 
+    0 0 30px rgba(82, 109, 255, 0.1),
+    inset 0 0 20px rgba(82, 109, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-logo-bottom::before {
+  content: '';
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 35%,
+    rgba(67, 56, 202, 0.1) 45%,
+    rgba(99, 102, 241, 0.2) 50%,
+    rgba(59, 130, 246, 0.1) 55%,
+    transparent 65%
+  );
+  animation: scanLine 3s linear infinite;
+}
+
+.ai-text-bottom {
+  font-family: 'Russo One', sans-serif;  /* 更换字体 */
+  font-size: 32px;  /* 调整字体大小 */
+  font-weight: 400;  /* Russo One 只有一种字重 */
+  letter-spacing: 2px;
+  background: linear-gradient(
+    90deg,
+    #4338ca 0%,    /* 深蓝色 */
+    #6366f1 50%,   /* 亮蓝色 */
+    #3b82f6 100%   /* 天蓝色 */
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 12px rgba(67, 56, 202, 0.5));
+  animation: shimmer 4s linear infinite;
+  position: relative;
+  z-index: 1;
+  text-transform: uppercase;
+  transform: skew(-2deg);
+}
+
+.ai-text-bottom::after {
+  content: 'AI';
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  font-family: 'Russo One', sans-serif;
+  background: linear-gradient(
+    90deg,
+    #4338ca 0%,    /* 深蓝色 */
+    #3b82f6 100%   /* 天蓝色 */
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: blur(16px);
+  opacity: 0.7;
+  animation: pulse 2s ease-in-out infinite;
+  text-transform: uppercase;
+  transform: skew(-2deg);
+  letter-spacing: 2px;
+}
+
+@keyframes scanLine {
+  0% {
+    transform: translateY(-200%) rotate(45deg);
+  }
+  100% {
+    transform: translateY(200%) rotate(45deg);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% center;
+    transform: scale(1) skew(-2deg);
+  }
+  50% {
+    transform: scale(1.1) skew(-2deg);
+  }
+  100% {
+    background-position: -200% center;
+    transform: scale(1) skew(-2deg);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    filter: blur(16px);
+    opacity: 0.4;
+    transform: scale(1) skew(-2deg);
+  }
+  50% {
+    filter: blur(24px);
+    opacity: 0.8;
+    transform: scale(1.1) skew(-2deg);
+  }
+  100% {
+    filter: blur(16px);
+    opacity: 0.4;
+    transform: scale(1) skew(-2deg);
+  }
+}
+
+/* 添加光晕效果 */
+.ai-logo-bottom::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle,
+    rgba(67, 56, 202, 0.1) 0%,   /* 深蓝色光晕 */
+    rgba(99, 102, 241, 0.05) 30%,  /* 亮蓝色光晕 */
+    rgba(59, 130, 246, 0.05) 60%,  /* 天蓝色光晕 */
+    transparent 80%
+  );
+  animation: rotate 8s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 需要在 HTML head 中添加 Righteous 字体 */
+/* <link href="https://fonts.googleapis.com/css2?family=Righteous&display=swap" rel="stylesheet"> */
 </style> 
